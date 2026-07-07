@@ -1,0 +1,159 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// --- Auth.js (NextAuth) required models ---
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  emailVerified DateTime?
+  image         String?
+
+  accounts     Account[]
+  sessions     Session[]
+  clubsCreated Club[]       @relation("ClubsCreated")
+  memberships  Membership[]
+  suggestions  Suggestion[]
+  votes        Vote[]
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// --- App models (MVP slice) ---
+
+model Club {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  inviteCode  String   @unique @default(cuid())
+  createdById String
+  createdAt   DateTime @default(now())
+
+  createdBy   User         @relation("ClubsCreated", fields: [createdById], references: [id])
+  memberships Membership[]
+  rounds      Round[]
+  readBooks   ReadBook[]
+}
+
+enum MembershipRole {
+  ORGANIZER
+  MEMBER
+}
+
+model Membership {
+  id       String         @id @default(cuid())
+  userId   String
+  clubId   String
+  role     MembershipRole @default(MEMBER)
+  joinedAt DateTime       @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  club Club @relation(fields: [clubId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, clubId])
+}
+
+enum RoundStatus {
+  OPEN
+  CLOSED
+}
+
+model Round {
+  id                  String      @id @default(cuid())
+  clubId              String
+  status              RoundStatus @default(OPEN)
+  opensAt             DateTime    @default(now())
+  closesAt            DateTime?
+  winningSuggestionId String?     @unique
+
+  club              Club         @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  suggestions       Suggestion[] @relation("RoundSuggestions")
+  votes             Vote[]
+  winningSuggestion Suggestion?  @relation("RoundWinner", fields: [winningSuggestionId], references: [id])
+  readBook          ReadBook?
+}
+
+model Suggestion {
+  id            String   @id @default(cuid())
+  roundId       String
+  suggestedById String
+  title         String
+  author        String
+  coverUrl      String?
+  note          String?
+  createdAt     DateTime @default(now())
+
+  round       Round  @relation("RoundSuggestions", fields: [roundId], references: [id], onDelete: Cascade)
+  suggestedBy User   @relation(fields: [suggestedById], references: [id])
+  votes       Vote[]
+  wonRound    Round? @relation("RoundWinner")
+}
+
+model Vote {
+  id           String   @id @default(cuid())
+  roundId      String
+  userId       String
+  suggestionId String
+  createdAt    DateTime @default(now())
+
+  round      Round      @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  suggestion Suggestion @relation(fields: [suggestionId], references: [id], onDelete: Cascade)
+
+  @@unique([roundId, userId])
+}
+
+model ReadBook {
+  id         String    @id @default(cuid())
+  clubId     String
+  roundId    String    @unique
+  title      String
+  author     String
+  coverUrl   String?
+  startedAt  DateTime  @default(now())
+  finishedAt DateTime?
+
+  club  Club  @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  round Round @relation(fields: [roundId], references: [id])
+}
