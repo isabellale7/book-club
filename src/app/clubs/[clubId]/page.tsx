@@ -1,0 +1,173 @@
+import Link from "next/link";
+import { notFound } from "next/navigation";
+import { headers } from "next/headers";
+import { prisma } from "@/lib/db";
+import { requireUser, requireMembership } from "@/lib/auth-helpers";
+import { castVote, closeRound } from "@/app/clubs/[clubId]/actions";
+
+export default async function ClubPage({
+  params,
+}: {
+  params: Promise<{ clubId: string }>;
+}) {
+  const { clubId } = await params;
+  const user = await requireUser();
+  const membership = await requireMembership(clubId, user.id);
+
+  const club = await prisma.club.findUnique({ where: { id: clubId } });
+  if (!club) notFound();
+
+  const [round, currentlyReading] = await Promise.all([
+    prisma.round.findFirst({
+      where: { clubId, status: "OPEN" },
+      orderBy: { opensAt: "desc" },
+      include: {
+        suggestions: {
+          include: { suggestedBy: true, votes: true },
+          orderBy: { createdAt: "asc" },
+        },
+      },
+    }),
+    prisma.readBook.findFirst({
+      where: { clubId },
+      orderBy: { startedAt: "desc" },
+    }),
+  ]);
+
+  const isOrganizer = membership.role === "ORGANIZER";
+  const myVote = round?.suggestions.find((s) =>
+    s.votes.some((v) => v.userId === user.id),
+  );
+
+  const host = (await headers()).get("host");
+  const inviteUrl = host
+    ? `${host.includes("localhost") ? "http" : "https"}://${host}/invite/${club.inviteCode}`
+    : `/invite/${club.inviteCode}`;
+
+  return (
+    <main className="mx-auto w-full max-w-md flex-1 px-4 py-8">
+      <Link href="/" className="text-sm text-gray-600 underline">
+        ← Your clubs
+      </Link>
+      <h1 className="mt-2 text-2xl font-semibold">{club.name}</h1>
+      {club.description && (
+        <p className="mt-1 text-sm text-gray-600">{club.description}</p>
+      )}
+
+      {currentlyReading && (
+        <section className="mt-6 rounded-md border border-gray-200 p-4">
+          <div className="text-xs font-medium uppercase tracking-wide text-gray-500">
+            Currently reading
+          </div>
+          <div className="mt-1 flex gap-3">
+            {currentlyReading.coverUrl && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={currentlyReading.coverUrl}
+                alt=""
+                className="h-20 w-14 object-cover"
+              />
+            )}
+            <div>
+              <div className="font-medium">{currentlyReading.title}</div>
+              <div className="text-sm text-gray-600">
+                {currentlyReading.author}
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {isOrganizer && (
+        <section className="mt-6 rounded-md bg-gray-50 p-4">
+          <div className="text-xs font-medium uppercase tracking-wide text-gray-500">
+            Invite members
+          </div>
+          <p className="mt-1 break-all text-sm text-gray-700">{inviteUrl}</p>
+        </section>
+      )}
+
+      <section className="mt-6">
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-lg font-semibold">Vote for the next book</h2>
+          <Link
+            href={`/clubs/${clubId}/suggest`}
+            className="text-sm font-medium text-gray-900 underline"
+          >
+            + Suggest
+          </Link>
+        </div>
+
+        {!round || round.suggestions.length === 0 ? (
+          <p className="text-sm text-gray-600">
+            No suggestions yet — be the first.
+          </p>
+        ) : (
+          <ul className="flex flex-col gap-3">
+            {round.suggestions.map((s) => {
+              const isMyVote = myVote?.id === s.id;
+              return (
+                <li
+                  key={s.id}
+                  className="flex items-center gap-3 rounded-md border border-gray-200 p-3"
+                >
+                  {s.coverUrl && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={s.coverUrl}
+                      alt=""
+                      className="h-16 w-11 object-cover"
+                    />
+                  )}
+                  <div className="flex-1">
+                    <div className="font-medium">{s.title}</div>
+                    <div className="text-sm text-gray-600">{s.author}</div>
+                    {s.note && (
+                      <div className="mt-1 text-sm text-gray-500">
+                        &ldquo;{s.note}&rdquo;
+                      </div>
+                    )}
+                    <div className="mt-1 text-xs text-gray-400">
+                      suggested by{" "}
+                      {s.suggestedBy.name ?? s.suggestedBy.email}
+                    </div>
+                  </div>
+                  <form action={castVote.bind(null, clubId, s.id)}>
+                    <button
+                      type="submit"
+                      className={`rounded-md px-3 py-2 text-sm font-medium ${
+                        isMyVote
+                          ? "bg-gray-900 text-white"
+                          : "border border-gray-300 text-gray-900"
+                      }`}
+                    >
+                      {isMyVote ? "Voted" : "Vote"}
+                    </button>
+                  </form>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+
+        <p className="mt-3 text-xs text-gray-500">
+          Vote counts are hidden until the organizer closes voting.
+        </p>
+
+        {isOrganizer && round && round.suggestions.length > 0 && (
+          <form
+            action={closeRound.bind(null, clubId, round.id)}
+            className="mt-4"
+          >
+            <button
+              type="submit"
+              className="w-full rounded-md bg-gray-900 px-3 py-2 text-sm font-medium text-white"
+            >
+              Close voting and pick a winner
+            </button>
+          </form>
+        )}
+      </section>
+    </main>
+  );
+}
