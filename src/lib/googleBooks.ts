@@ -3,6 +3,7 @@ export type BookSearchResult = {
   author: string;
   coverUrl: string | null;
   description: string | null;
+  genre: string | null;
 };
 
 export async function searchBooks(query: string): Promise<BookSearchResult[]> {
@@ -28,6 +29,7 @@ export async function searchBooks(query: string): Promise<BookSearchResult[]> {
     const imageLinks = info.imageLinks as
       | { thumbnail?: string; smallThumbnail?: string }
       | undefined;
+    const categories = info.categories as string[] | undefined;
 
     return {
       title: (info.title as string) ?? "Untitled",
@@ -37,6 +39,9 @@ export async function searchBooks(query: string): Promise<BookSearchResult[]> {
         imageLinks?.smallThumbnail?.replace("http://", "https://") ??
         null,
       description: (info.description as string) ?? null,
+      // Google Books categories are often slash-delimited paths like
+      // "Fiction / Science Fiction / General" — keep just the broad genre.
+      genre: categories?.[0]?.split("/")[0]?.trim() ?? null,
     };
   });
 }

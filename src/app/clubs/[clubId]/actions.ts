@@ -15,6 +15,7 @@ export async function addSuggestion(clubId: string, formData: FormData) {
   const title = String(formData.get("title") ?? "").trim();
   const author = String(formData.get("author") ?? "").trim();
   const coverUrl = String(formData.get("coverUrl") ?? "").trim() || null;
+  const genre = String(formData.get("genre") ?? "").trim() || null;
   const note = String(formData.get("note") ?? "").trim() || null;
 
   if (!title || !author) throw new Error("Title and author are required");
@@ -31,6 +32,7 @@ export async function addSuggestion(clubId: string, formData: FormData) {
       title,
       author,
       coverUrl,
+      genre,
       note,
     },
   });
@@ -140,6 +142,7 @@ export async function closeRound(clubId: string, roundId: string) {
         title: winner.title,
         author: winner.author,
         coverUrl: winner.coverUrl,
+        genre: winner.genre,
       },
     });
 

@@ -20,6 +20,7 @@ export function SuggestForm({
       <input type="hidden" name="title" value={selected.title} />
       <input type="hidden" name="author" value={selected.author} />
       <input type="hidden" name="coverUrl" value={selected.coverUrl ?? ""} />
+      <input type="hidden" name="genre" value={selected.genre ?? ""} />
 
       <div className="flex items-center gap-3 rounded-md border border-gray-200 p-3">
         {selected.coverUrl && (
