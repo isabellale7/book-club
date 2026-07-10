@@ -23,6 +23,7 @@ model User {
   suggestions  Suggestion[]
   votes        Vote[]
   ratings      Rating[]
+  comments     Comment[]
 }
 
 model Account {
@@ -125,10 +126,22 @@ model Suggestion {
   note          String?
   createdAt     DateTime @default(now())
 
-  round       Round  @relation("RoundSuggestions", fields: [roundId], references: [id], onDelete: Cascade)
-  suggestedBy User   @relation(fields: [suggestedById], references: [id])
+  round       Round     @relation("RoundSuggestions", fields: [roundId], references: [id], onDelete: Cascade)
+  suggestedBy User      @relation(fields: [suggestedById], references: [id])
   votes       Vote[]
-  wonRound    Round? @relation("RoundWinner")
+  wonRound    Round?    @relation("RoundWinner")
+  comments    Comment[]
+}
+
+model Comment {
+  id           String   @id @default(cuid())
+  suggestionId String
+  userId       String
+  body         String
+  createdAt    DateTime @default(now())
+
+  suggestion Suggestion @relation(fields: [suggestionId], references: [id], onDelete: Cascade)
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Vote {
