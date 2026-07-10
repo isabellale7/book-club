@@ -3,7 +3,7 @@
 Helps a book club go from "we need a new book" to "here's what we're reading":
 suggest books, vote, close the round, and see the winner.
 
-Four slices are built so far:
+Five slices are built so far:
 1. Create a club → invite a member → suggest a book → rank the suggestions →
    close the round → see the winner as "Currently Reading".
 2. Mark the current book as finished → rate it (1–5 stars + optional review) →
@@ -13,6 +13,7 @@ Four slices are built so far:
 4. Real email delivery via [Resend](https://resend.com): magic-link sign-in
    emails, and a notification to every club member when a round closes with
    the winner.
+5. Discussion threads: comment on any suggestion to weigh in before voting.
 
 See [Not built yet](#not-built-yet) for what's still missing.
 
@@ -108,8 +109,10 @@ switch providers entirely, replace `sendEmail` in
    different email, and join the club.
 4. From either account, go to **+ Suggest** and search for a book to add it
    to the current round.
-5. Add a couple more suggestions. From each account, rank as many of them as
-   you like (1st choice, 2nd choice, ...) and click **Save my ranking**.
+5. Add a couple more suggestions. Click **Discuss** on one to leave a comment
+   from each account, then go back. From each account, rank as many
+   suggestions as you like (1st choice, 2nd choice, ...) and click **Save my
+   ranking**.
 6. As the organizer, click **Close voting and pick a winner** — the
    instant-runoff winner becomes the club's "Currently Reading" book, a new
    round opens automatically for the next pick, and every member gets an
@@ -124,7 +127,8 @@ switch providers entirely, replace `sendEmail` in
 
 ```
 prisma/schema.prisma          Data model (User, Club, Membership, Round,
-                               Suggestion, Vote, ReadBook, Rating, + Auth.js tables)
+                               Suggestion, Vote, ReadBook, Rating, Comment,
+                               + Auth.js tables)
 src/auth.ts                   NextAuth config (magic-link provider, Prisma adapter)
 src/lib/db.ts                 Prisma client singleton
 src/lib/email.ts              Email sending (Resend if configured, else console)
@@ -136,6 +140,8 @@ src/app/clubs/new             Create a club
 src/app/clubs/[clubId]        Club page — suggestions, voting, close round,
                                mark finished
 src/app/clubs/[clubId]/suggest  Suggest a book (Google Books search)
+src/app/clubs/[clubId]/suggestions/[suggestionId]  Suggestion detail — discussion
+                               thread, comment form
 src/app/clubs/[clubId]/history  Reading history with average ratings
 src/app/clubs/[clubId]/books/[readBookId]  Book detail — submit/update your
                                rating and review, see others' reviews
@@ -170,10 +176,14 @@ src/app/login                 Magic-link sign-in
   A failed notification email is logged and swallowed rather than failing
   the close-round action — the round still closes even if email delivery
   has a problem.
+- **Discussion threads**: scoped to suggestions (discuss before voting), not
+  finished books — `Rating.reviewText` already covers after-the-fact
+  commentary on a finished book, so a second comment surface there felt
+  redundant for now.
 
 ## Not built yet
 
 These are in the PRD but intentionally left for later slices:
 
-- Discussion threads, meeting scheduling, progress tracking, recommendation
-  engine, Goodreads/StoryGraph import, multiple simultaneous rounds.
+- Meeting scheduling, progress tracking, recommendation engine,
+  Goodreads/StoryGraph import, multiple simultaneous rounds.
