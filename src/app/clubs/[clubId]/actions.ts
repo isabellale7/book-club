@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect, notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { requireUser, requireMembership } from "@/lib/auth-helpers";
+import { runInstantRunoff, type Ballot } from "@/lib/instantRunoff";
 
 export async function addSuggestion(clubId: string, formData: FormData) {
   const user = await requireUser();
@@ -35,26 +36,52 @@ export async function addSuggestion(clubId: string, formData: FormData) {
   redirect(`/clubs/${clubId}`);
 }
 
-export async function castVote(clubId: string, suggestionId: string) {
+export async function submitRanking(
+  clubId: string,
+  roundId: string,
+  formData: FormData,
+) {
   const user = await requireUser();
   await requireMembership(clubId, user.id);
 
-  const suggestion = await prisma.suggestion.findUnique({
-    where: { id: suggestionId },
-    include: { round: true },
+  const round = await prisma.round.findUnique({
+    where: { id: roundId },
+    include: { suggestions: true },
   });
-  if (!suggestion || suggestion.round.clubId !== clubId) notFound();
-  if (suggestion.round.status !== "OPEN") {
-    throw new Error("Voting is closed for this round");
+  if (!round || round.clubId !== clubId) notFound();
+  if (round.status !== "OPEN") throw new Error("Voting is closed for this round");
+
+  const validSuggestionIds = new Set(round.suggestions.map((s) => s.id));
+
+  // Each ranked suggestion arrives as rank_<suggestionId>=<1-based rank>,
+  // left blank ("") for suggestions the voter didn't rank.
+  const ranked: { suggestionId: string; rank: number }[] = [];
+  for (const [key, value] of formData.entries()) {
+    if (!key.startsWith("rank_")) continue;
+    const suggestionId = key.slice("rank_".length);
+    if (!validSuggestionIds.has(suggestionId)) continue;
+    const raw = String(value).trim();
+    if (!raw) continue;
+    const rank = Number(raw);
+    if (!Number.isInteger(rank) || rank < 1) {
+      throw new Error("Ranks must be positive whole numbers");
+    }
+    ranked.push({ suggestionId, rank });
   }
 
-  await prisma.vote.upsert({
-    where: {
-      roundId_userId: { roundId: suggestion.roundId, userId: user.id },
-    },
-    update: { suggestionId },
-    create: { roundId: suggestion.roundId, userId: user.id, suggestionId },
-  });
+  const ranks = ranked.map((r) => r.rank);
+  if (new Set(ranks).size !== ranks.length) {
+    throw new Error("Each rank can only be used once — check for duplicates");
+  }
+
+  await prisma.$transaction([
+    prisma.vote.deleteMany({ where: { roundId, userId: user.id } }),
+    ...ranked.map((r) =>
+      prisma.vote.create({
+        data: { roundId, userId: user.id, suggestionId: r.suggestionId, rank: r.rank },
+      }),
+    ),
+  ]);
 
   revalidatePath(`/clubs/${clubId}`);
 }
@@ -79,9 +106,21 @@ export async function closeRound(clubId: string, roundId: string) {
       throw new Error("Can't close a round with no suggestions");
     }
 
-    const winner = round.suggestions.reduce((best, current) =>
-      current.votes.length > best.votes.length ? current : best,
+    const candidateIds = round.suggestions.map((s) => s.id);
+    const ballotsByUser = new Map<string, { suggestionId: string; rank: number }[]>();
+    for (const suggestion of round.suggestions) {
+      for (const vote of suggestion.votes) {
+        const ballot = ballotsByUser.get(vote.userId) ?? [];
+        ballot.push({ suggestionId: vote.suggestionId, rank: vote.rank });
+        ballotsByUser.set(vote.userId, ballot);
+      }
+    }
+    const ballots: Ballot[] = [...ballotsByUser.values()].map((votes) =>
+      votes.sort((a, b) => a.rank - b.rank).map((v) => v.suggestionId),
     );
+
+    const winnerId = runInstantRunoff(candidateIds, ballots);
+    const winner = round.suggestions.find((s) => s.id === winnerId)!;
 
     await tx.round.update({
       where: { id: roundId },

@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { headers } from "next/headers";
 import { prisma } from "@/lib/db";
 import { requireUser, requireMembership } from "@/lib/auth-helpers";
-import { castVote, closeRound, markFinished } from "@/app/clubs/[clubId]/actions";
+import { submitRanking, closeRound, markFinished } from "@/app/clubs/[clubId]/actions";
 
 export default async function ClubPage({
   params,
@@ -35,8 +35,13 @@ export default async function ClubPage({
   ]);
 
   const isOrganizer = membership.role === "ORGANIZER";
-  const myVote = round?.suggestions.find((s) =>
-    s.votes.some((v) => v.userId === user.id),
+  const myRankBySuggestion = new Map(
+    round?.suggestions
+      .map((s) => {
+        const myVote = s.votes.find((v) => v.userId === user.id);
+        return myVote ? ([s.id, myVote.rank] as const) : null;
+      })
+      .filter((entry): entry is [string, number] => entry !== null),
   );
 
   const host = (await headers()).get("host");
@@ -110,7 +115,7 @@ export default async function ClubPage({
 
       <section className="mt-6">
         <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-lg font-semibold">Vote for the next book</h2>
+          <h2 className="text-lg font-semibold">Rank the next book</h2>
           <Link
             href={`/clubs/${clubId}/suggest`}
             className="text-sm font-medium text-gray-900 underline"
@@ -124,10 +129,9 @@ export default async function ClubPage({
             No suggestions yet — be the first.
           </p>
         ) : (
-          <ul className="flex flex-col gap-3">
-            {round.suggestions.map((s) => {
-              const isMyVote = myVote?.id === s.id;
-              return (
+          <form action={submitRanking.bind(null, clubId, round.id)}>
+            <ul className="flex flex-col gap-3">
+              {round.suggestions.map((s) => (
                 <li
                   key={s.id}
                   className="flex items-center gap-3 rounded-md border border-gray-200 p-3"
@@ -153,27 +157,38 @@ export default async function ClubPage({
                       {s.suggestedBy.name ?? s.suggestedBy.email}
                     </div>
                   </div>
-                  <form action={castVote.bind(null, clubId, s.id)}>
-                    <button
-                      type="submit"
-                      className={`rounded-md px-3 py-2 text-sm font-medium ${
-                        isMyVote
-                          ? "bg-gray-900 text-white"
-                          : "border border-gray-300 text-gray-900"
-                      }`}
-                    >
-                      {isMyVote ? "Voted" : "Vote"}
-                    </button>
-                  </form>
+                  <select
+                    name={`rank_${s.id}`}
+                    defaultValue={myRankBySuggestion.get(s.id) ?? ""}
+                    className="rounded-md border border-gray-300 px-2 py-2 text-sm"
+                  >
+                    <option value="">Not ranked</option>
+                    {round.suggestions.map((_, i) => (
+                      <option key={i} value={i + 1}>
+                        {i + 1}
+                        {i === 0 ? "st" : i === 1 ? "nd" : i === 2 ? "rd" : "th"}{" "}
+                        choice
+                      </option>
+                    ))}
+                  </select>
                 </li>
-              );
-            })}
-          </ul>
-        )}
+              ))}
+            </ul>
 
-        <p className="mt-3 text-xs text-gray-500">
-          Vote counts are hidden until the organizer closes voting.
-        </p>
+            <p className="mt-3 text-xs text-gray-500">
+              Rank as many suggestions as you like, 1st choice first. Rankings
+              are hidden from other members until the organizer closes
+              voting.
+            </p>
+
+            <button
+              type="submit"
+              className="mt-3 w-full rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-900"
+            >
+              Save my ranking
+            </button>
+          </form>
+        )}
 
         {isOrganizer && round && round.suggestions.length > 0 && (
           <form
