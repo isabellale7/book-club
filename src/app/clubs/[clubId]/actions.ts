@@ -5,6 +5,7 @@ import { redirect, notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { requireUser, requireMembership } from "@/lib/auth-helpers";
 import { runInstantRunoff, type Ballot } from "@/lib/instantRunoff";
+import { sendEmail } from "@/lib/email";
 
 export async function addSuggestion(clubId: string, formData: FormData) {
   const user = await requireUser();
@@ -93,7 +94,7 @@ export async function closeRound(clubId: string, roundId: string) {
     throw new Error("Only the organizer can close voting");
   }
 
-  await prisma.$transaction(async (tx) => {
+  const { club, winner } = await prisma.$transaction(async (tx) => {
     const round = await tx.round.findUnique({
       where: { id: roundId },
       include: {
@@ -144,9 +145,42 @@ export async function closeRound(clubId: string, roundId: string) {
     await tx.round.create({
       data: { clubId, status: "OPEN" },
     });
+
+    const club = await tx.club.findUniqueOrThrow({ where: { id: clubId } });
+    return { club, winner };
   });
 
+  await notifyRoundClosed(clubId, club.name, winner.title, winner.author);
+
   revalidatePath(`/clubs/${clubId}`);
+}
+
+async function notifyRoundClosed(
+  clubId: string,
+  clubName: string,
+  winnerTitle: string,
+  winnerAuthor: string,
+) {
+  const memberships = await prisma.membership.findMany({
+    where: { clubId },
+    include: { user: true },
+  });
+  const clubUrl = `${process.env.NEXTAUTH_URL}/clubs/${clubId}`;
+
+  const results = await Promise.allSettled(
+    memberships.map((m) =>
+      sendEmail({
+        to: m.user.email,
+        subject: `${clubName}: "${winnerTitle}" is next`,
+        text: `The club picked "${winnerTitle}" by ${winnerAuthor} as the next read.\n\nVoting is now open for the pick after that: ${clubUrl}`,
+      }),
+    ),
+  );
+  for (const result of results) {
+    if (result.status === "rejected") {
+      console.error("Failed to send round-closed notification:", result.reason);
+    }
+  }
 }
 
 export async function markFinished(clubId: string, readBookId: string) {
