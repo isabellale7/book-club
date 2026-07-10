@@ -10,7 +10,7 @@ export default async function HistoryPage({
 }) {
   const { clubId } = await params;
   const user = await requireUser();
-  await requireMembership(clubId, user.id);
+  const membership = await requireMembership(clubId, user.id);
 
   const club = await prisma.club.findUnique({ where: { id: clubId } });
   if (!club) notFound();
@@ -29,9 +29,19 @@ export default async function HistoryPage({
       >
         ← Back to club
       </Link>
-      <h1 className="mt-2 mb-6 text-2xl font-semibold">
-        {club.name} — Reading history
-      </h1>
+      <div className="mt-2 mb-6 flex items-center justify-between">
+        <h1 className="text-2xl font-semibold">
+          {club.name} — Reading history
+        </h1>
+        {membership.role === "ORGANIZER" && (
+          <Link
+            href={`/clubs/${clubId}/import`}
+            className="text-sm font-medium text-gray-900 underline"
+          >
+            Import
+          </Link>
+        )}
+      </div>
 
       {readBooks.length === 0 ? (
         <p className="text-sm text-gray-600">
@@ -70,6 +80,7 @@ export default async function HistoryPage({
                         month: "short",
                         day: "numeric",
                       })}
+                      {book.imported && " · imported"}
                     </div>
                   </div>
                   <div className="text-sm font-medium text-gray-700">

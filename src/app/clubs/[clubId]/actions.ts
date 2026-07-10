@@ -6,6 +6,7 @@ import { prisma } from "@/lib/db";
 import { requireUser, requireMembership } from "@/lib/auth-helpers";
 import { runInstantRunoff, type Ballot } from "@/lib/instantRunoff";
 import { sendEmail } from "@/lib/email";
+import { parseLibraryExport } from "@/lib/csvImport";
 
 export async function addSuggestion(clubId: string, formData: FormData) {
   const user = await requireUser();
@@ -328,4 +329,46 @@ export async function addComment(
   });
 
   revalidatePath(`/clubs/${clubId}/suggestions/${suggestionId}`);
+}
+
+export async function importReadingHistory(clubId: string, formData: FormData) {
+  const user = await requireUser();
+  const membership = await requireMembership(clubId, user.id);
+  if (membership.role !== "ORGANIZER") {
+    throw new Error("Only the organizer can import reading history");
+  }
+
+  const file = formData.get("file");
+  if (!(file instanceof File) || file.size === 0) {
+    throw new Error("Choose a CSV file to import");
+  }
+
+  const books = parseLibraryExport(await file.text());
+  if (books.length === 0) {
+    throw new Error("No finished books with a rating or read date were found in that file");
+  }
+
+  await prisma.$transaction(
+    books.map((book) => {
+      const finishedAt = book.dateRead ?? new Date();
+      return prisma.readBook.create({
+        data: {
+          clubId,
+          title: book.title,
+          author: book.author,
+          startedAt: finishedAt,
+          finishedAt,
+          imported: true,
+          ...(book.rating !== null && {
+            ratings: {
+              create: { userId: user.id, score: book.rating },
+            },
+          }),
+        },
+      });
+    }),
+  );
+
+  revalidatePath(`/clubs/${clubId}/history`);
+  redirect(`/clubs/${clubId}/history`);
 }
