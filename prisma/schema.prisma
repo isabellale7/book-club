@@ -172,6 +172,7 @@ model ReadBook {
   club    Club     @relation(fields: [clubId], references: [id], onDelete: Cascade)
   round   Round    @relation(fields: [roundId], references: [id])
   ratings Rating[]
+  meeting Meeting?
 }
 
 model Rating {
@@ -186,4 +187,15 @@ model Rating {
   user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([readBookId, userId])
+}
+
+model Meeting {
+  id          String   @id @default(cuid())
+  readBookId  String   @unique
+  scheduledAt DateTime
+  location    String?
+  videoUrl    String?
+  createdAt   DateTime @default(now())
+
+  readBook ReadBook @relation(fields: [readBookId], references: [id], onDelete: Cascade)
 }
