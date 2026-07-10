@@ -109,3 +109,57 @@ export async function closeRound(clubId: string, roundId: string) {
 
   revalidatePath(`/clubs/${clubId}`);
 }
+
+export async function markFinished(clubId: string, readBookId: string) {
+  const user = await requireUser();
+  const membership = await requireMembership(clubId, user.id);
+  if (membership.role !== "ORGANIZER") {
+    throw new Error("Only the organizer can mark a book as finished");
+  }
+
+  const readBook = await prisma.readBook.findUnique({
+    where: { id: readBookId },
+  });
+  if (!readBook || readBook.clubId !== clubId) notFound();
+  if (readBook.finishedAt) throw new Error("Already marked as finished");
+
+  await prisma.readBook.update({
+    where: { id: readBookId },
+    data: { finishedAt: new Date() },
+  });
+
+  revalidatePath(`/clubs/${clubId}`);
+  revalidatePath(`/clubs/${clubId}/history`);
+}
+
+export async function rateBook(
+  clubId: string,
+  readBookId: string,
+  formData: FormData,
+) {
+  const user = await requireUser();
+  await requireMembership(clubId, user.id);
+
+  const readBook = await prisma.readBook.findUnique({
+    where: { id: readBookId },
+  });
+  if (!readBook || readBook.clubId !== clubId) notFound();
+  if (!readBook.finishedAt) {
+    throw new Error("Can't rate a book the club hasn't finished yet");
+  }
+
+  const score = Number(formData.get("score"));
+  if (!Number.isInteger(score) || score < 1 || score > 5) {
+    throw new Error("Rating must be a whole number from 1 to 5");
+  }
+  const reviewText = String(formData.get("reviewText") ?? "").trim() || null;
+
+  await prisma.rating.upsert({
+    where: { readBookId_userId: { readBookId, userId: user.id } },
+    update: { score, reviewText },
+    create: { readBookId, userId: user.id, score, reviewText },
+  });
+
+  revalidatePath(`/clubs/${clubId}/books/${readBookId}`);
+  revalidatePath(`/clubs/${clubId}/history`);
+}

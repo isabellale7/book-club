@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { headers } from "next/headers";
 import { prisma } from "@/lib/db";
 import { requireUser, requireMembership } from "@/lib/auth-helpers";
-import { castVote, closeRound } from "@/app/clubs/[clubId]/actions";
+import { castVote, closeRound, markFinished } from "@/app/clubs/[clubId]/actions";
 
 export default async function ClubPage({
   params,
@@ -29,7 +29,7 @@ export default async function ClubPage({
       },
     }),
     prisma.readBook.findFirst({
-      where: { clubId },
+      where: { clubId, finishedAt: null },
       orderBy: { startedAt: "desc" },
     }),
   ]);
@@ -49,7 +49,15 @@ export default async function ClubPage({
       <Link href="/" className="text-sm text-gray-600 underline">
         ← Your clubs
       </Link>
-      <h1 className="mt-2 text-2xl font-semibold">{club.name}</h1>
+      <div className="mt-2 flex items-center justify-between">
+        <h1 className="text-2xl font-semibold">{club.name}</h1>
+        <Link
+          href={`/clubs/${clubId}/history`}
+          className="text-sm text-gray-600 underline"
+        >
+          History
+        </Link>
+      </div>
       {club.description && (
         <p className="mt-1 text-sm text-gray-600">{club.description}</p>
       )}
@@ -75,6 +83,19 @@ export default async function ClubPage({
               </div>
             </div>
           </div>
+          {isOrganizer && (
+            <form
+              action={markFinished.bind(null, clubId, currentlyReading.id)}
+              className="mt-3"
+            >
+              <button
+                type="submit"
+                className="text-sm font-medium text-gray-900 underline"
+              >
+                Mark as finished
+              </button>
+            </form>
+          )}
         </section>
       )}
 
