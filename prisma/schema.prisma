@@ -124,6 +124,7 @@ model Suggestion {
   title         String
   author        String
   coverUrl      String?
+  genre         String?
   note          String?
   createdAt     DateTime @default(now())
 
@@ -167,6 +168,7 @@ model ReadBook {
   title      String
   author     String
   coverUrl   String?
+  genre      String?
   startedAt  DateTime  @default(now())
   finishedAt DateTime?
   imported   Boolean   @default(false)
