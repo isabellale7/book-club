@@ -16,6 +16,8 @@ Five slices are built so far:
 5. Discussion threads: comment on any suggestion to weigh in before voting.
 6. Meeting scheduling: the organizer sets a date/time, optional location, and
    optional video call link for discussing the currently-reading book.
+7. Reading progress tracker: any member can share "chapter X of Y" for the
+   currently-reading book, visible to the whole club.
 
 See [Not built yet](#not-built-yet) for what's still missing.
 
@@ -130,7 +132,7 @@ switch providers entirely, replace `sendEmail` in
 ```
 prisma/schema.prisma          Data model (User, Club, Membership, Round,
                                Suggestion, Vote, ReadBook, Rating, Comment,
-                               Meeting, + Auth.js tables)
+                               Meeting, ReadingProgress, + Auth.js tables)
 src/auth.ts                   NextAuth config (magic-link provider, Prisma adapter)
 src/lib/db.ts                 Prisma client singleton
 src/lib/email.ts              Email sending (Resend if configured, else console)
@@ -186,10 +188,14 @@ src/app/login                 Magic-link sign-in
   only (mirrors who can close a round / mark a book finished). Setting it
   again updates the existing meeting rather than creating another one — there's
   no support for multiple recurring meetings per book.
+- **Reading progress**: tracked by chapter, not page (matches the PRD's own
+  example), one row per member per book — updating replaces your previous
+  progress rather than keeping a history of past updates. Any member can post
+  their own progress, not just the organizer.
 
 ## Not built yet
 
 These are in the PRD but intentionally left for later slices:
 
-- Progress tracking, recommendation engine, Goodreads/StoryGraph import,
-  multiple simultaneous rounds.
+- Recommendation engine, Goodreads/StoryGraph import, multiple simultaneous
+  rounds.
