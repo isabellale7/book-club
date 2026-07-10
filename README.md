@@ -14,6 +14,8 @@ Five slices are built so far:
    emails, and a notification to every club member when a round closes with
    the winner.
 5. Discussion threads: comment on any suggestion to weigh in before voting.
+6. Meeting scheduling: the organizer sets a date/time, optional location, and
+   optional video call link for discussing the currently-reading book.
 
 See [Not built yet](#not-built-yet) for what's still missing.
 
@@ -128,7 +130,7 @@ switch providers entirely, replace `sendEmail` in
 ```
 prisma/schema.prisma          Data model (User, Club, Membership, Round,
                                Suggestion, Vote, ReadBook, Rating, Comment,
-                               + Auth.js tables)
+                               Meeting, + Auth.js tables)
 src/auth.ts                   NextAuth config (magic-link provider, Prisma adapter)
 src/lib/db.ts                 Prisma client singleton
 src/lib/email.ts              Email sending (Resend if configured, else console)
@@ -180,10 +182,14 @@ src/app/login                 Magic-link sign-in
   finished books — `Rating.reviewText` already covers after-the-fact
   commentary on a finished book, so a second comment surface there felt
   redundant for now.
+- **Meeting scheduling**: one meeting per `ReadBook`, set by the organizer
+  only (mirrors who can close a round / mark a book finished). Setting it
+  again updates the existing meeting rather than creating another one — there's
+  no support for multiple recurring meetings per book.
 
 ## Not built yet
 
 These are in the PRD but intentionally left for later slices:
 
-- Meeting scheduling, progress tracking, recommendation engine,
-  Goodreads/StoryGraph import, multiple simultaneous rounds.
+- Progress tracking, recommendation engine, Goodreads/StoryGraph import,
+  multiple simultaneous rounds.
