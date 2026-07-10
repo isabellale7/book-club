@@ -20,6 +20,8 @@ Five slices are built so far:
    currently-reading book, visible to the whole club.
 8. Goodreads/StoryGraph import: the organizer uploads their library export
    CSV to backfill the club's reading history.
+9. "Your club loves" panel on the suggest page: a deterministic
+   ratings/genre-based recommendation — no AI, per the PRD's own non-goal.
 
 See [Not built yet](#not-built-yet) for what's still missing.
 
@@ -145,6 +147,7 @@ src/lib/email.ts              Email sending (Resend if configured, else console)
 src/lib/googleBooks.ts        Google Books search
 src/lib/instantRunoff.ts      Instant-runoff tally, given ranked ballots
 src/lib/csvImport.ts          Goodreads/StoryGraph CSV export parser
+src/lib/genreStats.ts         Ranks genres by average club rating
 src/lib/auth-helpers.ts       requireUser / requireMembership guards
 src/app/page.tsx              Dashboard — list of your clubs
 src/app/clubs/new             Create a club
@@ -213,9 +216,19 @@ src/app/login                 Magic-link sign-in
   read" shelf rows are skipped. `ReadBook.roundId` had to become optional to
   support these — imported books were never voted on, so there's no `Round`
   to attach them to.
+- **Recommendations**: the PRD's §3 non-goals explicitly rule out
+  AI-generated recommendations for v1, so this is a deterministic ratings
+  aggregation instead — the suggest page shows the club's top genres by
+  average rating (pooling every individual rating in that genre, not an
+  average of each book's average). Genre comes from the first Google Books
+  category on a suggestion (e.g. "Fiction / Science Fiction" → "Fiction") and
+  carries over to the `ReadBook` when a round closes. Imported books have no
+  genre (neither export format includes one), so they're invisible to this
+  panel until someone re-suggests something in the same genre through the
+  normal flow.
 
 ## Not built yet
 
 These are in the PRD but intentionally left for later slices:
 
-- Recommendation engine, multiple simultaneous rounds.
+- Multiple simultaneous rounds.
