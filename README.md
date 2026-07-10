@@ -18,6 +18,8 @@ Five slices are built so far:
    optional video call link for discussing the currently-reading book.
 7. Reading progress tracker: any member can share "chapter X of Y" for the
    currently-reading book, visible to the whole club.
+8. Goodreads/StoryGraph import: the organizer uploads their library export
+   CSV to backfill the club's reading history.
 
 See [Not built yet](#not-built-yet) for what's still missing.
 
@@ -126,6 +128,10 @@ switch providers entirely, replace `sendEmail` in
    book. It moves into **History**, where any member can open it and submit a
    1–5 star rating with an optional short review. The history list shows each
    book's average rating across all members who rated it.
+8. From **History**, the organizer can click **Import** and upload a
+   Goodreads or StoryGraph library export CSV to backfill past reads —
+   finished books get added straight to history, rated under the organizer's
+   account.
 
 ## Project structure
 
@@ -138,6 +144,7 @@ src/lib/db.ts                 Prisma client singleton
 src/lib/email.ts              Email sending (Resend if configured, else console)
 src/lib/googleBooks.ts        Google Books search
 src/lib/instantRunoff.ts      Instant-runoff tally, given ranked ballots
+src/lib/csvImport.ts          Goodreads/StoryGraph CSV export parser
 src/lib/auth-helpers.ts       requireUser / requireMembership guards
 src/app/page.tsx              Dashboard — list of your clubs
 src/app/clubs/new             Create a club
@@ -147,6 +154,7 @@ src/app/clubs/[clubId]/suggest  Suggest a book (Google Books search)
 src/app/clubs/[clubId]/suggestions/[suggestionId]  Suggestion detail — discussion
                                thread, comment form
 src/app/clubs/[clubId]/history  Reading history with average ratings
+src/app/clubs/[clubId]/import  Upload a Goodreads/StoryGraph CSV export
 src/app/clubs/[clubId]/books/[readBookId]  Book detail — submit/update your
                                rating and review, see others' reviews
 src/app/invite/[code]         Join a club via invite link
@@ -192,10 +200,22 @@ src/app/login                 Magic-link sign-in
   example), one row per member per book — updating replaces your previous
   progress rather than keeping a history of past updates. Any member can post
   their own progress, not just the organizer.
+- **Goodreads/StoryGraph import**: neither service offers a live API (Goodreads
+  retired its public API in 2020; StoryGraph never had one), so "import" means
+  uploading the CSV library export either service lets you download from
+  account settings. Column names differ between the two, so the parser
+  matches by keyword (`title`, `author`, `rating` but not `average rating`,
+  `date read`) rather than an exact header. Organizer-only, since it writes
+  shared club history — imported rows are rated under the importing
+  organizer's account, and `ReadBook.imported` flags them so History can
+  distinguish "we voted on this" from "backfilled from an export." A row is
+  only imported if it looks finished (has a rating or a read date); "want to
+  read" shelf rows are skipped. `ReadBook.roundId` had to become optional to
+  support these — imported books were never voted on, so there's no `Round`
+  to attach them to.
 
 ## Not built yet
 
 These are in the PRD but intentionally left for later slices:
 
-- Recommendation engine, Goodreads/StoryGraph import, multiple simultaneous
-  rounds.
+- Recommendation engine, multiple simultaneous rounds.
