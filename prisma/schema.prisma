@@ -18,12 +18,13 @@ model User {
 
   accounts     Account[]
   sessions     Session[]
-  clubsCreated Club[]       @relation("ClubsCreated")
+  clubsCreated Club[]            @relation("ClubsCreated")
   memberships  Membership[]
   suggestions  Suggestion[]
   votes        Vote[]
   ratings      Rating[]
   comments     Comment[]
+  progress     ReadingProgress[]
 }
 
 model Account {
@@ -169,10 +170,11 @@ model ReadBook {
   startedAt  DateTime  @default(now())
   finishedAt DateTime?
 
-  club    Club     @relation(fields: [clubId], references: [id], onDelete: Cascade)
-  round   Round    @relation(fields: [roundId], references: [id])
-  ratings Rating[]
-  meeting Meeting?
+  club     Club              @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  round    Round             @relation(fields: [roundId], references: [id])
+  ratings  Rating[]
+  meeting  Meeting?
+  progress ReadingProgress[]
 }
 
 model Rating {
@@ -198,4 +200,18 @@ model Meeting {
   createdAt   DateTime @default(now())
 
   readBook ReadBook @relation(fields: [readBookId], references: [id], onDelete: Cascade)
+}
+
+model ReadingProgress {
+  id             String   @id @default(cuid())
+  readBookId     String
+  userId         String
+  currentChapter Int
+  totalChapters  Int?
+  updatedAt      DateTime @updatedAt
+
+  readBook ReadBook @relation(fields: [readBookId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([readBookId, userId])
 }
