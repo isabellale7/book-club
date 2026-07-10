@@ -3,15 +3,18 @@
 Helps a book club go from "we need a new book" to "here's what we're reading":
 suggest books, vote, close the round, and see the winner.
 
-Three slices are built so far:
+Four slices are built so far:
 1. Create a club → invite a member → suggest a book → rank the suggestions →
    close the round → see the winner as "Currently Reading".
 2. Mark the current book as finished → rate it (1–5 stars + optional review) →
    see it in the club's reading history with its average rating.
 3. Ranked-choice voting: members rank as many suggestions as they like instead
    of picking just one, and the winner is decided by instant-runoff.
+4. Real email delivery via [Resend](https://resend.com): magic-link sign-in
+   emails, and a notification to every club member when a round closes with
+   the winner.
 
-Real email delivery is not built yet — see [Not built yet](#not-built-yet).
+See [Not built yet](#not-built-yet) for what's still missing.
 
 ## Stack
 
@@ -48,6 +51,13 @@ Fill in `.env`:
   allows unauthenticated requests at low volume), but a free key raises the
   rate limit. Get one at the
   [Google Cloud Console](https://console.cloud.google.com/apis/library/books.googleapis.com).
+- `RESEND_API_KEY` — optional. Without it, emails are logged to the terminal
+  instead of sent (see below). Get a free key from
+  [resend.com](https://resend.com) → API Keys.
+- `EMAIL_FROM` — sender address. Defaults to Resend's sandbox sender
+  (`onboarding@resend.dev`), which only delivers to the email address on your
+  own Resend account. Verify a domain in Resend and change this to send to
+  anyone else (e.g. your actual book club members).
 
 ### 3. Install dependencies and set up the database
 
@@ -67,11 +77,12 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000).
 
-### Signing in (dev mode)
+### Signing in
 
-There's no real email provider configured for local dev — magic links are
-logged to the terminal instead of actually sent. After entering your email on
-the sign-in page, check the terminal running `npm run dev` for a block like:
+If `RESEND_API_KEY` is set, magic-link and round-closed emails are actually
+sent via Resend. Otherwise (e.g. you haven't set up a provider yet), they're
+logged to the terminal instead. After entering your email on the sign-in
+page, check the terminal running `npm run dev` for a block like:
 
 ```
 ----- EMAIL to you@example.com -----
@@ -81,10 +92,13 @@ http://localhost:3000/api/auth/callback/nodemailer?...
 ----- END EMAIL -----
 ```
 
-Copy that link into your browser to finish signing in. To send real emails,
-replace `sendEmail` in [`src/lib/email.ts`](src/lib/email.ts) with a call to a
-provider like [Resend](https://resend.com) or [Postmark](https://postmarkapp.com)
-— nothing else needs to change.
+Copy that link into your browser to finish signing in.
+
+With Resend configured but no verified domain, remember the sandbox sender
+only delivers to the email on your own Resend account — sign in with that
+address, or verify a domain first if you want to invite real people. To
+switch providers entirely, replace `sendEmail` in
+[`src/lib/email.ts`](src/lib/email.ts) — nothing else needs to change.
 
 ## Trying the end-to-end flow
 
@@ -97,8 +111,10 @@ provider like [Resend](https://resend.com) or [Postmark](https://postmarkapp.com
 5. Add a couple more suggestions. From each account, rank as many of them as
    you like (1st choice, 2nd choice, ...) and click **Save my ranking**.
 6. As the organizer, click **Close voting and pick a winner** — the
-   instant-runoff winner becomes the club's "Currently Reading" book, and a
-   new round opens automatically for the next pick.
+   instant-runoff winner becomes the club's "Currently Reading" book, a new
+   round opens automatically for the next pick, and every member gets an
+   email with the result (real, if Resend is configured; logged to the
+   terminal otherwise).
 7. Still as the organizer, click **Mark as finished** on the currently-reading
    book. It moves into **History**, where any member can open it and submit a
    1–5 star rating with an optional short review. The history list shows each
@@ -111,7 +127,7 @@ prisma/schema.prisma          Data model (User, Club, Membership, Round,
                                Suggestion, Vote, ReadBook, Rating, + Auth.js tables)
 src/auth.ts                   NextAuth config (magic-link provider, Prisma adapter)
 src/lib/db.ts                 Prisma client singleton
-src/lib/email.ts              Email sending (stubbed to console in dev)
+src/lib/email.ts              Email sending (Resend if configured, else console)
 src/lib/googleBooks.ts        Google Books search
 src/lib/instantRunoff.ts      Instant-runoff tally, given ranked ballots
 src/lib/auth-helpers.ts       requireUser / requireMembership guards
@@ -147,11 +163,17 @@ src/app/login                 Magic-link sign-in
   rated, once it's marked finished.
 - **Ratings**: one rating per member per book — resubmitting updates your
   existing rating and review rather than adding a duplicate.
+- **Email notifications**: sent for magic-link sign-in and when a round
+  closes (winner + link to the club). There's no "you've been invited" email
+  — invites are a shareable link the organizer sends themselves through
+  whatever channel they like, not an email the app sends on their behalf.
+  A failed notification email is logged and swallowed rather than failing
+  the close-round action — the round still closes even if email delivery
+  has a problem.
 
 ## Not built yet
 
 These are in the PRD but intentionally left for later slices:
 
-- Real email delivery for invite/voting notifications.
 - Discussion threads, meeting scheduling, progress tracking, recommendation
   engine, Goodreads/StoryGraph import, multiple simultaneous rounds.
