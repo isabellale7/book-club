@@ -236,3 +236,27 @@ export async function rateBook(
   revalidatePath(`/clubs/${clubId}/books/${readBookId}`);
   revalidatePath(`/clubs/${clubId}/history`);
 }
+
+export async function addComment(
+  clubId: string,
+  suggestionId: string,
+  formData: FormData,
+) {
+  const user = await requireUser();
+  await requireMembership(clubId, user.id);
+
+  const suggestion = await prisma.suggestion.findUnique({
+    where: { id: suggestionId },
+    include: { round: true },
+  });
+  if (!suggestion || suggestion.round.clubId !== clubId) notFound();
+
+  const body = String(formData.get("body") ?? "").trim();
+  if (!body) throw new Error("Comment can't be empty");
+
+  await prisma.comment.create({
+    data: { suggestionId, userId: user.id, body },
+  });
+
+  revalidatePath(`/clubs/${clubId}/suggestions/${suggestionId}`);
+}

@@ -23,7 +23,11 @@ export default async function ClubPage({
       orderBy: { opensAt: "desc" },
       include: {
         suggestions: {
-          include: { suggestedBy: true, votes: true },
+          include: {
+            suggestedBy: true,
+            votes: true,
+            _count: { select: { comments: true } },
+          },
           orderBy: { createdAt: "asc" },
         },
       },
@@ -156,6 +160,14 @@ export default async function ClubPage({
                       suggested by{" "}
                       {s.suggestedBy.name ?? s.suggestedBy.email}
                     </div>
+                    <Link
+                      href={`/clubs/${clubId}/suggestions/${s.id}`}
+                      className="mt-1 inline-block text-xs font-medium text-gray-600 underline"
+                    >
+                      {s._count.comments === 0
+                        ? "Discuss"
+                        : `${s._count.comments} comment${s._count.comments === 1 ? "" : "s"}`}
+                    </Link>
                   </div>
                   <select
                     name={`rank_${s.id}`}
