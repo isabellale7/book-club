@@ -3,14 +3,15 @@
 Helps a book club go from "we need a new book" to "here's what we're reading":
 suggest books, vote, close the round, and see the winner.
 
-Two slices are built so far:
-1. Create a club → invite a member → suggest a book → vote → close the round →
-   see the winner as "Currently Reading".
+Three slices are built so far:
+1. Create a club → invite a member → suggest a book → rank the suggestions →
+   close the round → see the winner as "Currently Reading".
 2. Mark the current book as finished → rate it (1–5 stars + optional review) →
    see it in the club's reading history with its average rating.
+3. Ranked-choice voting: members rank as many suggestions as they like instead
+   of picking just one, and the winner is decided by instant-runoff.
 
-Email notifications and ranked-choice voting are not built yet — see
-[Not built yet](#not-built-yet).
+Real email delivery is not built yet — see [Not built yet](#not-built-yet).
 
 ## Stack
 
@@ -93,10 +94,11 @@ provider like [Resend](https://resend.com) or [Postmark](https://postmarkapp.com
    different email, and join the club.
 4. From either account, go to **+ Suggest** and search for a book to add it
    to the current round.
-5. Add a couple more suggestions, then cast votes from each account.
-6. As the organizer, click **Close voting and pick a winner** — the top-voted
-   suggestion becomes the club's "Currently Reading" book, and a new round
-   opens automatically for the next pick.
+5. Add a couple more suggestions. From each account, rank as many of them as
+   you like (1st choice, 2nd choice, ...) and click **Save my ranking**.
+6. As the organizer, click **Close voting and pick a winner** — the
+   instant-runoff winner becomes the club's "Currently Reading" book, and a
+   new round opens automatically for the next pick.
 7. Still as the organizer, click **Mark as finished** on the currently-reading
    book. It moves into **History**, where any member can open it and submit a
    1–5 star rating with an optional short review. The history list shows each
@@ -111,6 +113,7 @@ src/auth.ts                   NextAuth config (magic-link provider, Prisma adapt
 src/lib/db.ts                 Prisma client singleton
 src/lib/email.ts              Email sending (stubbed to console in dev)
 src/lib/googleBooks.ts        Google Books search
+src/lib/instantRunoff.ts      Instant-runoff tally, given ranked ballots
 src/lib/auth-helpers.ts       requireUser / requireMembership guards
 src/app/page.tsx              Dashboard — list of your clubs
 src/app/clubs/new             Create a club
@@ -126,7 +129,13 @@ src/app/login                 Magic-link sign-in
 
 ## Decisions baked into this slice
 
-- **Voting**: one vote per person per round (simple, not ranked-choice).
+- **Voting**: ranked-choice (instant-runoff). Members rank as many
+  suggestions as they like — ranking is optional beyond 1st choice. Closing
+  a round repeatedly eliminates the suggestion with the fewest current
+  first-choice votes and redistributes its ballots to each voter's next
+  remaining choice, until one suggestion has a majority (or only one is
+  left). Ties for last place are broken by suggestion creation order — see
+  [`src/lib/instantRunoff.ts`](src/lib/instantRunoff.ts).
 - **Invites**: open link — anyone with the link can join, no organizer
   approval step.
 - **Vote visibility**: hidden from other members until the organizer closes
@@ -144,6 +153,5 @@ src/app/login                 Magic-link sign-in
 These are in the PRD but intentionally left for later slices:
 
 - Real email delivery for invite/voting notifications.
-- Ranked-choice voting.
 - Discussion threads, meeting scheduling, progress tracking, recommendation
   engine, Goodreads/StoryGraph import, multiple simultaneous rounds.
