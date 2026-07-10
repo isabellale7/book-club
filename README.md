@@ -3,9 +3,13 @@
 Helps a book club go from "we need a new book" to "here's what we're reading":
 suggest books, vote, close the round, and see the winner.
 
-This is the first, minimal slice: create a club → invite a member → suggest a
-book → vote → close the round → see the winner as "Currently Reading". Ratings,
-reading history, and email notifications are not built yet — see
+Two slices are built so far:
+1. Create a club → invite a member → suggest a book → vote → close the round →
+   see the winner as "Currently Reading".
+2. Mark the current book as finished → rate it (1–5 stars + optional review) →
+   see it in the club's reading history with its average rating.
+
+Email notifications and ranked-choice voting are not built yet — see
 [Not built yet](#not-built-yet).
 
 ## Stack
@@ -93,12 +97,16 @@ provider like [Resend](https://resend.com) or [Postmark](https://postmarkapp.com
 6. As the organizer, click **Close voting and pick a winner** — the top-voted
    suggestion becomes the club's "Currently Reading" book, and a new round
    opens automatically for the next pick.
+7. Still as the organizer, click **Mark as finished** on the currently-reading
+   book. It moves into **History**, where any member can open it and submit a
+   1–5 star rating with an optional short review. The history list shows each
+   book's average rating across all members who rated it.
 
 ## Project structure
 
 ```
 prisma/schema.prisma          Data model (User, Club, Membership, Round,
-                               Suggestion, Vote, ReadBook, + Auth.js tables)
+                               Suggestion, Vote, ReadBook, Rating, + Auth.js tables)
 src/auth.ts                   NextAuth config (magic-link provider, Prisma adapter)
 src/lib/db.ts                 Prisma client singleton
 src/lib/email.ts              Email sending (stubbed to console in dev)
@@ -106,8 +114,12 @@ src/lib/googleBooks.ts        Google Books search
 src/lib/auth-helpers.ts       requireUser / requireMembership guards
 src/app/page.tsx              Dashboard — list of your clubs
 src/app/clubs/new             Create a club
-src/app/clubs/[clubId]        Club page — suggestions, voting, close round
+src/app/clubs/[clubId]        Club page — suggestions, voting, close round,
+                               mark finished
 src/app/clubs/[clubId]/suggest  Suggest a book (Google Books search)
+src/app/clubs/[clubId]/history  Reading history with average ratings
+src/app/clubs/[clubId]/books/[readBookId]  Book detail — submit/update your
+                               rating and review, see others' reviews
 src/app/invite/[code]         Join a club via invite link
 src/app/login                 Magic-link sign-in
 ```
@@ -121,12 +133,16 @@ src/app/login                 Magic-link sign-in
   the round, to avoid social pressure.
 - **Rounds**: a club always has exactly one open round; closing it picks a
   winner, records it as `ReadBook`, and immediately opens the next round.
+- **Finishing a book**: only the organizer marks a book as finished (mirrors
+  who can close a round). A book only shows up in history, and can only be
+  rated, once it's marked finished.
+- **Ratings**: one rating per member per book — resubmitting updates your
+  existing rating and review rather than adding a duplicate.
 
 ## Not built yet
 
 These are in the PRD but intentionally left for later slices:
 
-- Ratings/reviews after finishing a book, and reading history display.
 - Real email delivery for invite/voting notifications.
 - Ranked-choice voting.
 - Discussion threads, meeting scheduling, progress tracking, recommendation
