@@ -238,6 +238,42 @@ export async function setMeeting(
   revalidatePath(`/clubs/${clubId}`);
 }
 
+export async function updateProgress(
+  clubId: string,
+  readBookId: string,
+  formData: FormData,
+) {
+  const user = await requireUser();
+  await requireMembership(clubId, user.id);
+
+  const readBook = await prisma.readBook.findUnique({
+    where: { id: readBookId },
+  });
+  if (!readBook || readBook.clubId !== clubId) notFound();
+
+  const currentChapter = Number(formData.get("currentChapter"));
+  if (!Number.isInteger(currentChapter) || currentChapter < 0) {
+    throw new Error("Current chapter must be a whole number, 0 or higher");
+  }
+  const totalRaw = String(formData.get("totalChapters") ?? "").trim();
+  const totalChapters = totalRaw ? Number(totalRaw) : null;
+  if (totalChapters !== null) {
+    if (!Number.isInteger(totalChapters) || totalChapters < currentChapter) {
+      throw new Error(
+        "Total chapters must be a whole number at least as large as the current chapter",
+      );
+    }
+  }
+
+  await prisma.readingProgress.upsert({
+    where: { readBookId_userId: { readBookId, userId: user.id } },
+    update: { currentChapter, totalChapters },
+    create: { readBookId, userId: user.id, currentChapter, totalChapters },
+  });
+
+  revalidatePath(`/clubs/${clubId}`);
+}
+
 export async function rateBook(
   clubId: string,
   readBookId: string,

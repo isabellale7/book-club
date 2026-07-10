@@ -8,6 +8,7 @@ import {
   closeRound,
   markFinished,
   setMeeting,
+  updateProgress,
 } from "@/app/clubs/[clubId]/actions";
 
 function toDatetimeLocalValue(date: Date) {
@@ -45,11 +46,17 @@ export default async function ClubPage({
     prisma.readBook.findFirst({
       where: { clubId, finishedAt: null },
       orderBy: { startedAt: "desc" },
-      include: { meeting: true },
+      include: {
+        meeting: true,
+        progress: { include: { user: true }, orderBy: { updatedAt: "desc" } },
+      },
     }),
   ]);
 
   const isOrganizer = membership.role === "ORGANIZER";
+  const myProgress = currentlyReading?.progress.find(
+    (p) => p.userId === user.id,
+  );
   const myRankBySuggestion = new Map(
     round?.suggestions
       .map((s) => {
@@ -194,6 +201,56 @@ export default async function ClubPage({
                 </button>
               </form>
             )}
+          </div>
+
+          <div className="mt-4 border-t border-gray-200 pt-3">
+            <div className="text-xs font-medium uppercase tracking-wide text-gray-500">
+              Reading progress
+            </div>
+            {currentlyReading.progress.length === 0 ? (
+              <p className="mt-1 text-sm text-gray-600">
+                No one has shared their progress yet.
+              </p>
+            ) : (
+              <ul className="mt-1 flex flex-col gap-1">
+                {currentlyReading.progress.map((p) => (
+                  <li key={p.id} className="text-sm text-gray-700">
+                    {p.user.name ?? p.user.email}: chapter {p.currentChapter}
+                    {p.totalChapters ? ` of ${p.totalChapters}` : ""}
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            <form
+              action={updateProgress.bind(null, clubId, currentlyReading.id)}
+              className="mt-2 flex items-center gap-2"
+            >
+              <input
+                type="number"
+                name="currentChapter"
+                required
+                min={0}
+                placeholder="Chapter"
+                defaultValue={myProgress?.currentChapter}
+                className="w-20 rounded-md border border-gray-300 px-2 py-2 text-sm"
+              />
+              <span className="text-sm text-gray-500">of</span>
+              <input
+                type="number"
+                name="totalChapters"
+                min={0}
+                placeholder="Total (optional)"
+                defaultValue={myProgress?.totalChapters ?? undefined}
+                className="w-28 rounded-md border border-gray-300 px-2 py-2 text-sm"
+              />
+              <button
+                type="submit"
+                className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-900"
+              >
+                Update
+              </button>
+            </form>
           </div>
         </section>
       )}
