@@ -136,13 +136,14 @@ model Vote {
   roundId      String
   userId       String
   suggestionId String
+  rank         Int
   createdAt    DateTime @default(now())
 
   round      Round      @relation(fields: [roundId], references: [id], onDelete: Cascade)
   user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
   suggestion Suggestion @relation(fields: [suggestionId], references: [id], onDelete: Cascade)
 
-  @@unique([roundId, userId])
+  @@unique([roundId, userId, suggestionId])
 }
 
 model ReadBook {
