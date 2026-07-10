@@ -3,7 +3,17 @@ import { notFound } from "next/navigation";
 import { headers } from "next/headers";
 import { prisma } from "@/lib/db";
 import { requireUser, requireMembership } from "@/lib/auth-helpers";
-import { submitRanking, closeRound, markFinished } from "@/app/clubs/[clubId]/actions";
+import {
+  submitRanking,
+  closeRound,
+  markFinished,
+  setMeeting,
+} from "@/app/clubs/[clubId]/actions";
+
+function toDatetimeLocalValue(date: Date) {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
 
 export default async function ClubPage({
   params,
@@ -35,6 +45,7 @@ export default async function ClubPage({
     prisma.readBook.findFirst({
       where: { clubId, finishedAt: null },
       orderBy: { startedAt: "desc" },
+      include: { meeting: true },
     }),
   ]);
 
@@ -105,6 +116,85 @@ export default async function ClubPage({
               </button>
             </form>
           )}
+
+          <div className="mt-4 border-t border-gray-200 pt-3">
+            <div className="text-xs font-medium uppercase tracking-wide text-gray-500">
+              Meeting
+            </div>
+            {currentlyReading.meeting ? (
+              <div className="mt-1 text-sm text-gray-700">
+                <div>
+                  {currentlyReading.meeting.scheduledAt.toLocaleString(
+                    undefined,
+                    {
+                      dateStyle: "medium",
+                      timeStyle: "short",
+                    },
+                  )}
+                </div>
+                {currentlyReading.meeting.location && (
+                  <div className="text-gray-600">
+                    {currentlyReading.meeting.location}
+                  </div>
+                )}
+                {currentlyReading.meeting.videoUrl && (
+                  <a
+                    href={currentlyReading.meeting.videoUrl}
+                    className="break-all text-gray-600 underline"
+                  >
+                    {currentlyReading.meeting.videoUrl}
+                  </a>
+                )}
+              </div>
+            ) : (
+              <p className="mt-1 text-sm text-gray-600">
+                Not scheduled yet.
+              </p>
+            )}
+
+            {isOrganizer && (
+              <form
+                action={setMeeting.bind(null, clubId, currentlyReading.id)}
+                className="mt-2 flex flex-col gap-2"
+              >
+                <input
+                  type="datetime-local"
+                  name="scheduledAt"
+                  required
+                  defaultValue={
+                    currentlyReading.meeting
+                      ? toDatetimeLocalValue(
+                          currentlyReading.meeting.scheduledAt,
+                        )
+                      : undefined
+                  }
+                  className="rounded-md border border-gray-300 px-3 py-2 text-sm"
+                />
+                <input
+                  type="text"
+                  name="location"
+                  placeholder="Location (optional)"
+                  defaultValue={currentlyReading.meeting?.location ?? ""}
+                  className="rounded-md border border-gray-300 px-3 py-2 text-sm"
+                />
+                <input
+                  type="url"
+                  name="videoUrl"
+                  placeholder="Video call link (optional)"
+                  defaultValue={currentlyReading.meeting?.videoUrl ?? ""}
+                  className="rounded-md border border-gray-300 px-3 py-2 text-sm"
+                />
+                <button
+                  type="submit"
+                  className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-900"
+                >
+                  {currentlyReading.meeting
+                    ? "Update meeting"
+                    : "Schedule meeting"}
+                </button>
+              </form>
+            )}
+          </div>
         </section>
       )}
 

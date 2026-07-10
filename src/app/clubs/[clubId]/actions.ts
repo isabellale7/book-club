@@ -205,6 +205,39 @@ export async function markFinished(clubId: string, readBookId: string) {
   revalidatePath(`/clubs/${clubId}/history`);
 }
 
+export async function setMeeting(
+  clubId: string,
+  readBookId: string,
+  formData: FormData,
+) {
+  const user = await requireUser();
+  const membership = await requireMembership(clubId, user.id);
+  if (membership.role !== "ORGANIZER") {
+    throw new Error("Only the organizer can schedule a meeting");
+  }
+
+  const readBook = await prisma.readBook.findUnique({
+    where: { id: readBookId },
+  });
+  if (!readBook || readBook.clubId !== clubId) notFound();
+
+  const scheduledAtRaw = String(formData.get("scheduledAt") ?? "");
+  const scheduledAt = new Date(scheduledAtRaw);
+  if (Number.isNaN(scheduledAt.getTime())) {
+    throw new Error("Pick a valid meeting date and time");
+  }
+  const location = String(formData.get("location") ?? "").trim() || null;
+  const videoUrl = String(formData.get("videoUrl") ?? "").trim() || null;
+
+  await prisma.meeting.upsert({
+    where: { readBookId },
+    update: { scheduledAt, location, videoUrl },
+    create: { readBookId, scheduledAt, location, videoUrl },
+  });
+
+  revalidatePath(`/clubs/${clubId}`);
+}
+
 export async function rateBook(
   clubId: string,
   readBookId: string,
