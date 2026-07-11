@@ -8,7 +8,11 @@ import { runInstantRunoff, type Ballot } from "@/lib/instantRunoff";
 import { sendEmail } from "@/lib/email";
 import { parseLibraryExport } from "@/lib/csvImport";
 
-export async function addSuggestion(clubId: string, formData: FormData) {
+export async function addSuggestion(
+  clubId: string,
+  roundId: string,
+  formData: FormData,
+) {
   const user = await requireUser();
   await requireMembership(clubId, user.id);
 
@@ -20,10 +24,9 @@ export async function addSuggestion(clubId: string, formData: FormData) {
 
   if (!title || !author) throw new Error("Title and author are required");
 
-  const round = await prisma.round.findFirst({
-    where: { clubId, status: "OPEN" },
-  });
-  if (!round) throw new Error("This club has no open voting round");
+  const round = await prisma.round.findUnique({ where: { id: roundId } });
+  if (!round || round.clubId !== clubId) notFound();
+  if (round.status !== "OPEN") throw new Error("This round is no longer open");
 
   await prisma.suggestion.create({
     data: {
@@ -38,6 +41,30 @@ export async function addSuggestion(clubId: string, formData: FormData) {
   });
 
   redirect(`/clubs/${clubId}`);
+}
+
+export async function addTrack(clubId: string, formData: FormData) {
+  const user = await requireUser();
+  const membership = await requireMembership(clubId, user.id);
+  if (membership.role !== "ORGANIZER") {
+    throw new Error("Only the organizer can add a track");
+  }
+
+  const trackName = String(formData.get("trackName") ?? "").trim();
+  if (!trackName) throw new Error("Track name is required");
+
+  const existing = await prisma.round.findFirst({
+    where: {
+      clubId,
+      status: "OPEN",
+      trackName: { equals: trackName, mode: "insensitive" },
+    },
+  });
+  if (existing) throw new Error("A track with that name is already open");
+
+  await prisma.round.create({ data: { clubId, trackName, status: "OPEN" } });
+
+  revalidatePath(`/clubs/${clubId}`);
 }
 
 export async function submitRanking(
@@ -110,6 +137,15 @@ export async function closeRound(clubId: string, roundId: string) {
       throw new Error("Can't close a round with no suggestions");
     }
 
+    const stillReading = await tx.readBook.findFirst({
+      where: { clubId, trackName: round.trackName, finishedAt: null },
+    });
+    if (stillReading) {
+      throw new Error(
+        `Mark "${stillReading.title}" as finished before closing the next round for this track`,
+      );
+    }
+
     const candidateIds = round.suggestions.map((s) => s.id);
     const ballotsByUser = new Map<string, { suggestionId: string; rank: number }[]>();
     for (const suggestion of round.suggestions) {
@@ -139,6 +175,7 @@ export async function closeRound(clubId: string, roundId: string) {
       data: {
         clubId,
         roundId,
+        trackName: round.trackName,
         title: winner.title,
         author: winner.author,
         coverUrl: winner.coverUrl,
@@ -147,7 +184,7 @@ export async function closeRound(clubId: string, roundId: string) {
     });
 
     await tx.round.create({
-      data: { clubId, status: "OPEN" },
+      data: { clubId, trackName: round.trackName, status: "OPEN" },
     });
 
     const club = await tx.club.findUniqueOrThrow({ where: { id: clubId } });

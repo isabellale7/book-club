@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { requireUser, requireMembership } from "@/lib/auth-helpers";
 import { addSuggestion } from "@/app/clubs/[clubId]/actions";
@@ -7,12 +8,21 @@ import { SuggestForm } from "./SuggestForm";
 
 export default async function SuggestPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ clubId: string }>;
+  searchParams: Promise<{ round?: string }>;
 }) {
   const { clubId } = await params;
+  const { round: roundId } = await searchParams;
   const user = await requireUser();
   await requireMembership(clubId, user.id);
+
+  if (!roundId) notFound();
+  const round = await prisma.round.findUnique({ where: { id: roundId } });
+  if (!round || round.clubId !== clubId || round.status !== "OPEN") {
+    notFound();
+  }
 
   const ratedBooks = await prisma.readBook.findMany({
     where: { clubId, genre: { not: null } },
@@ -25,7 +35,9 @@ export default async function SuggestPage({
       <Link href={`/clubs/${clubId}`} className="text-sm text-gray-600 underline">
         ← Back to club
       </Link>
-      <h1 className="mt-2 mb-2 text-2xl font-semibold">Suggest a book</h1>
+      <h1 className="mt-2 mb-2 text-2xl font-semibold">
+        Suggest a book{round.trackName !== "General" && ` — ${round.trackName}`}
+      </h1>
 
       {topGenres.length > 0 && (
         <div className="mb-4 rounded-md bg-gray-50 p-3">
@@ -43,7 +55,7 @@ export default async function SuggestPage({
         </div>
       )}
 
-      <SuggestForm action={addSuggestion.bind(null, clubId)} />
+      <SuggestForm action={addSuggestion.bind(null, clubId, round.id)} />
     </main>
   );
 }
