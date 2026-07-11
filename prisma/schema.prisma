@@ -105,6 +105,7 @@ enum RoundStatus {
 model Round {
   id                  String      @id @default(cuid())
   clubId              String
+  trackName           String      @default("General")
   status              RoundStatus @default(OPEN)
   opensAt             DateTime    @default(now())
   closesAt            DateTime?
@@ -165,6 +166,7 @@ model ReadBook {
   id         String    @id @default(cuid())
   clubId     String
   roundId    String?   @unique
+  trackName  String    @default("General")
   title      String
   author     String
   coverUrl   String?
