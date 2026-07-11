@@ -22,8 +22,11 @@ Five slices are built so far:
    CSV to backfill the club's reading history.
 9. "Your club loves" panel on the suggest page: a deterministic
    ratings/genre-based recommendation — no AI, per the PRD's own non-goal.
+10. Multiple simultaneous tracks: a club can run more than one pick at once
+    (e.g. a fiction track and a nonfiction track), each with its own
+    suggestions, ranking, and currently-reading book.
 
-See [Not built yet](#not-built-yet) for what's still missing.
+Every PRD nice-to-have is now built.
 
 ## Stack
 
@@ -134,6 +137,11 @@ switch providers entirely, replace `sendEmail` in
    Goodreads or StoryGraph library export CSV to backfill past reads —
    finished books get added straight to history, rated under the organizer's
    account.
+9. As the organizer, scroll to **Add a track** and create one (e.g.
+   "Nonfiction"). The club page now shows two independent sections, each
+   with its own suggestions, ranking, and (once you close a round) its own
+   "Currently Reading" book — running at the same time as the original
+   track.
 
 ## Project structure
 
@@ -226,9 +234,18 @@ src/app/login                 Magic-link sign-in
   genre (neither export format includes one), so they're invisible to this
   panel until someone re-suggests something in the same genre through the
   normal flow.
-
-## Not built yet
-
-These are in the PRD but intentionally left for later slices:
-
-- Multiple simultaneous rounds.
+- **Multiple simultaneous tracks**: implemented as a `trackName` string on
+  `Round`/`ReadBook` (default `"General"`) rather than a separate `Track`
+  model — a club always has exactly one *open* round per distinct track name
+  instead of exactly one open round total. This needed far less schema/query
+  churn than a full relational model, since almost every action already
+  operated on a specific `roundId` rather than looking one up implicitly —
+  only `addSuggestion` needed to start taking `roundId` explicitly instead of
+  finding "the" open round. Track names aren't unique at the database level,
+  only checked for collisions among currently-open rounds when adding one, so
+  a club can reuse a track name (e.g. "Fiction") again later once its round
+  closes. The club page hides track-name labels entirely when a club only
+  has its default single track, so the common case looks identical to before
+  multi-track support existed. Closing a round is blocked with an error if
+  that track's current book hasn't been marked finished yet, to prevent two
+  unfinished "Currently Reading" books piling up for the same track.
