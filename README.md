@@ -143,6 +143,34 @@ switch providers entirely, replace `sendEmail` in
    "Currently Reading" book — running at the same time as the original
    track.
 
+## Deployment
+
+Live at **https://book-club-platform.vercel.app**, deployed on Vercel with
+the GitHub repo ([isabellale7/book-club](https://github.com/isabellale7/book-club))
+connected for auto-deploy on push to `main`.
+
+- **Database**: production uses its own Neon project — separate from the
+  Neon project used for local dev (see `DATABASE_URL` in your local `.env`
+  vs. the `DATABASE_URL` set in Vercel's project env vars). Don't point
+  local dev at the production database; that's how test data ends up in a
+  real deployment.
+- **Env vars**: set directly on Vercel (Project → Settings → Environment
+  Variables) — `DATABASE_URL`, `AUTH_SECRET`, `NEXTAUTH_URL` (the production
+  URL above), `RESEND_API_KEY`, `EMAIL_FROM`. `GOOGLE_BOOKS_API_KEY` is
+  optional and unset in production, same as local dev.
+- **Prisma client on deploy**: the generated client (`src/generated/prisma`)
+  is gitignored, so a fresh clone has nothing to import until `prisma
+  generate` runs. `package.json` has a `postinstall` script for this —
+  Vercel (and anyone else's `npm install`) triggers it automatically. Don't
+  remove that script or deploys will fail with `Module not found: Can't
+  resolve '@/generated/prisma/client'`.
+- **Migrations**: this repo's migrations are applied straight to the
+  production Neon database via `prisma db execute` / `prisma migrate
+  resolve` (see the migration files' timestamps) rather than `prisma migrate
+  deploy` in a CI step — there's no automated migration-on-deploy step yet.
+  Run new migrations against production manually before relying on a schema
+  change in the deployed app.
+
 ## Project structure
 
 ```
